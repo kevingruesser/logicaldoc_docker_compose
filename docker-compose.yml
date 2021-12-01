@@ -1,0 +1,56 @@
+version: "3"
+services:
+    dms_db:
+        image: "mysql:8.0"
+        container_name: "dms_mysql"
+        volumes:
+          - ./data/mysql/:/var/lib/mysql
+        networks:
+          - dms_link
+        environment:
+          - MYSQL_ROOT_PASSWORD=${SQLROOTPASS}
+          - MYSQL_DATABASE=${SQLDB}
+          - MYSQL_USER=${SQLUSER}
+          - MYSQL_PASSWORD=${SQLPASS}
+
+    dms:
+        image: "logicaldoc/logicaldoc:8.6.1"
+        container_name: "dms_logicaldoc"
+        ports:
+          - 8085:8080
+        environment:
+          - UID=1000
+          - GID=1000
+          - LDOC_MEMORY=2000
+          - DB_ENGINE=mysql
+          - DB_HOST=dms_db
+          - DB_PORT=3306
+          - DB_NAME=${SQLDB}
+          - DB_USER=${SQLUSER}
+          - DB_PASSWORD=${SQLPASS}
+        volumes:
+          - ./data/conf/:/LogicalDOC/conf
+          - ./data/repository:/LogicalDOC/repository
+        networks:
+          - dms_link
+          - traefik
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.${SERVICE}.entrypoints=http"
+          - "traefik.http.routers.${SERVICE}.rule=Host(`${CONTAINERURL}`)"
+          - "traefik.http.middlewares.${SERVICE}-https-redirect.redirectscheme.scheme=https"
+          - "traefik.http.routers.${SERVICE}.middlewares=${SERVICE}-https-redirect"
+          - "traefik.http.routers.${SERVICE}-secure.entrypoints=https"
+          - "traefik.http.routers.${SERVICE}-secure.rule=Host(`${CONTAINERURL}`)"
+          - "traefik.http.routers.${SERVICE}-secure.tls=true"
+          - "traefik.docker.network=traefik"
+        restart: unless-stopped
+        depends_on:
+          - dms_db
+
+
+networks:
+    dms_link:
+        driver: bridge
+    traefik:
+        external: true
